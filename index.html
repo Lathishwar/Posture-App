@@ -1,0 +1,638 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>PostureAI — Analysis & Engagement Monitor</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:ital,wght@0,300;0,400;0,600;1,300&display=swap" rel="stylesheet" />
+<style>
+/* ── Reset & tokens ─────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg:        #0b0e14;
+  --panel:     #111722;
+  --border:    #1e2a3a;
+  --accent1:   #00e5ff;   /* cyan  */
+  --accent2:   #7b61ff;   /* violet */
+  --accent3:   #ff5f7e;   /* coral  */
+  --good:      #00e676;
+  --fair:      #ffb300;
+  --poor:      #ff3d57;
+  --text:      #e2eaf4;
+  --muted:     #5a6a80;
+  --font-mono: 'Space Mono', monospace;
+  --font-body: 'DM Sans', sans-serif;
+  --radius:    10px;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-body);
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* ── Header ─────────────────────────────────────────────── */
+header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 28px;
+  border-bottom: 1px solid var(--border);
+  background: #0d1219;
+  position: sticky; top: 0; z-index: 100;
+}
+.logo {
+  display: flex; align-items: center; gap: 10px;
+}
+.logo-icon {
+  width: 34px; height: 34px;
+  background: linear-gradient(135deg, var(--accent1), var(--accent2));
+  border-radius: 8px;
+  display: grid; place-items: center; font-size: 18px;
+}
+.logo-text { font-family: var(--font-mono); font-size: 15px; letter-spacing: .04em; }
+.logo-text span { color: var(--accent1); }
+
+.header-right { display: flex; align-items: center; gap: 16px; }
+#session-timer {
+  font-family: var(--font-mono); font-size: 13px;
+  color: var(--muted); background: var(--panel);
+  padding: 5px 12px; border-radius: 20px;
+  border: 1px solid var(--border);
+}
+#status-dot {
+  width: 10px; height: 10px; border-radius: 50%;
+  background: var(--muted);
+  box-shadow: 0 0 0 3px rgba(90,106,128,.2);
+  transition: background .3s, box-shadow .3s;
+}
+#status-dot.live {
+  background: var(--good);
+  box-shadow: 0 0 0 3px rgba(0,230,118,.2);
+  animation: pulse 2s infinite;
+}
+@keyframes pulse {
+  0%,100% { box-shadow: 0 0 0 3px rgba(0,230,118,.2); }
+  50%      { box-shadow: 0 0 0 6px rgba(0,230,118,.05); }
+}
+
+btn-reset {
+  font-family: var(--font-mono); font-size: 11px;
+  background: transparent; color: var(--muted);
+  border: 1px solid var(--border);
+  padding: 5px 12px; border-radius: 20px; cursor: pointer;
+  letter-spacing: .04em; transition: all .2s;
+}
+button:hover { border-color: var(--accent1); color: var(--accent1); }
+
+/* ── Layout ─────────────────────────────────────────────── */
+.main-grid {
+  display: grid;
+  grid-template-columns: 1fr 420px;
+  gap: 20px;
+  padding: 20px 28px;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+/* ── Camera panel ───────────────────────────────────────── */
+.camera-panel {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  position: relative;
+}
+.camera-panel img {
+  width: 100%; display: block;
+  aspect-ratio: 4/3; object-fit: cover;
+  background: #060810;
+}
+.cam-overlay {
+  position: absolute; top: 0; left: 0; right: 0;
+  display: flex; justify-content: space-between;
+  align-items: flex-start; padding: 14px;
+  pointer-events: none;
+}
+.cam-badge {
+  font-family: var(--font-mono); font-size: 10px;
+  letter-spacing: .08em; text-transform: uppercase;
+  padding: 4px 10px; border-radius: 20px;
+}
+.cam-badge.recording {
+  background: rgba(255,62,87,.15);
+  border: 1px solid var(--poor);
+  color: var(--poor);
+}
+.cam-badge.info {
+  background: rgba(0,229,255,.08);
+  border: 1px solid rgba(0,229,255,.3);
+  color: var(--accent1);
+}
+
+/* corner brackets */
+.camera-panel::before, .camera-panel::after,
+.cam-corner-br, .cam-corner-bl {
+  content: '';
+  position: absolute; width: 20px; height: 20px;
+  pointer-events: none; z-index: 2;
+}
+.camera-panel::before {
+  top: 10px; left: 10px;
+  border-top: 2px solid var(--accent1);
+  border-left: 2px solid var(--accent1);
+}
+.camera-panel::after {
+  top: 10px; right: 10px;
+  border-top: 2px solid var(--accent1);
+  border-right: 2px solid var(--accent1);
+}
+.cam-corner-br, .cam-corner-bl {
+  bottom: 10px;
+}
+.cam-corner-br {
+  right: 10px;
+  border-bottom: 2px solid var(--accent1);
+  border-right: 2px solid var(--accent1);
+}
+.cam-corner-bl {
+  left: 10px;
+  border-bottom: 2px solid var(--accent1);
+  border-left: 2px solid var(--accent1);
+}
+
+/* posture banner below camera */
+.posture-banner {
+  display: flex; align-items: center; gap: 12px;
+  padding: 12px 18px;
+  border-top: 1px solid var(--border);
+}
+.posture-label { font-family: var(--font-mono); font-size: 11px; color: var(--muted); letter-spacing: .08em; }
+#posture-status-text { font-size: 15px; font-weight: 600; }
+.posture-bar-wrap {
+  flex: 1;
+  height: 6px; border-radius: 3px;
+  background: var(--border); overflow: hidden;
+}
+.posture-bar-fill {
+  height: 100%; width: 100%;
+  border-radius: 3px;
+  background: linear-gradient(90deg, var(--accent2), var(--accent1));
+  transform-origin: left;
+  transition: transform .6s ease, background .4s;
+}
+#posture-score-num {
+  font-family: var(--font-mono); font-size: 22px;
+  font-weight: 700; min-width: 44px; text-align: right;
+}
+
+/* ── Dashboard column ───────────────────────────────────── */
+.dashboard { display: flex; flex-direction: column; gap: 16px; }
+
+/* ── Card ───────────────────────────────────────────────── */
+.card {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px 18px;
+}
+.card-header {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 14px;
+}
+.card-title {
+  font-family: var(--font-mono); font-size: 11px;
+  letter-spacing: .1em; text-transform: uppercase;
+  color: var(--muted);
+}
+.card-value {
+  font-family: var(--font-mono); font-size: 13px;
+  font-weight: 700;
+}
+
+/* ── Engagement ring ────────────────────────────────────── */
+.engagement-ring-wrap {
+  display: flex; align-items: center; gap: 20px;
+}
+.ring-svg { flex-shrink: 0; }
+.ring-track { fill: none; stroke: var(--border); stroke-width: 8; }
+.ring-fill  {
+  fill: none; stroke-width: 8;
+  stroke-linecap: round;
+  stroke: var(--accent2);
+  transition: stroke-dashoffset .7s cubic-bezier(.4,0,.2,1), stroke .4s;
+  transform: rotate(-90deg); transform-origin: 50% 50%;
+}
+.ring-label {
+  font-family: var(--font-mono); font-size: 26px; font-weight: 700;
+  dominant-baseline: middle; text-anchor: middle;
+}
+.ring-sub {
+  font-size: 10px; fill: var(--muted);
+  dominant-baseline: middle; text-anchor: middle;
+  font-family: var(--font-body);
+}
+.engagement-stats { flex: 1; display: flex; flex-direction: column; gap: 10px; }
+
+/* ── Stat row ───────────────────────────────────────────── */
+.stat-row {
+  display: flex; align-items: center;
+  justify-content: space-between;
+  font-size: 13px;
+}
+.stat-key { color: var(--muted); font-size: 12px; }
+.stat-val { font-family: var(--font-mono); font-size: 13px; font-weight: 600; }
+.badge {
+  font-size: 10px; font-family: var(--font-mono);
+  padding: 2px 8px; border-radius: 20px;
+  letter-spacing: .04em;
+}
+.badge.good    { background: rgba(0,230,118,.12); color: var(--good); }
+.badge.fair    { background: rgba(255,179,0,.12);  color: var(--fair); }
+.badge.poor    { background: rgba(255,62,87,.12);  color: var(--poor); }
+.badge.neutral { background: rgba(0,229,255,.1);   color: var(--accent1); }
+
+/* ── Metric grid (posture angles) ───────────────────────── */
+.metric-grid {
+  display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px;
+}
+.metric-cell {
+  background: #0d1320;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  text-align: center;
+}
+.metric-cell .m-val {
+  font-family: var(--font-mono); font-size: 20px; font-weight: 700;
+  display: block; margin-bottom: 4px;
+}
+.metric-cell .m-key {
+  font-size: 10px; color: var(--muted);
+  text-transform: uppercase; letter-spacing: .08em;
+}
+
+/* ── Alerts ─────────────────────────────────────────────── */
+#alerts-list { display: flex; flex-direction: column; gap: 8px; min-height: 32px; }
+.alert-item {
+  display: flex; align-items: center; gap: 10px;
+  background: rgba(255,95,126,.06);
+  border: 1px solid rgba(255,95,126,.2);
+  border-radius: 7px; padding: 8px 12px;
+  font-size: 12px; color: #ffb3c0;
+  animation: slideIn .3s ease;
+}
+@keyframes slideIn {
+  from { opacity: 0; transform: translateX(10px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+.alert-item::before { content: '⚠'; font-size: 13px; }
+.no-alerts {
+  font-size: 12px; color: var(--good);
+  display: flex; align-items: center; gap: 8px;
+}
+.no-alerts::before { content: '✓'; font-size: 14px; }
+
+/* ── History sparkline ──────────────────────────────────── */
+#spark-canvas {
+  width: 100%; height: 60px; display: block;
+  border-radius: 6px;
+}
+
+/* ── Gauge mini bars ─────────────────────────────────────── */
+.gauge-row {
+  display: flex; flex-direction: column; gap: 8px;
+}
+.gauge-item { display: flex; flex-direction: column; gap: 4px; }
+.gauge-header { display: flex; justify-content: space-between; font-size: 12px; }
+.gauge-label { color: var(--muted); }
+.gauge-num   { font-family: var(--font-mono); font-size: 12px; }
+.gauge-track {
+  height: 5px; background: var(--border);
+  border-radius: 3px; overflow: hidden;
+}
+.gauge-fill {
+  height: 100%; border-radius: 3px;
+  transition: width .5s ease, background .4s;
+}
+
+/* ── Responsive ─────────────────────────────────────────── */
+@media (max-width: 960px) {
+  .main-grid { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <div class="logo-icon">🧍</div>
+    <div class="logo-text">Posture<span>AI</span></div>
+  </div>
+  <div class="header-right">
+    <div id="session-timer">⏱ 00:00</div>
+    <div id="status-dot"></div>
+    <button id="btn-reset" onclick="resetSession()"
+      style="font-family:var(--font-mono);font-size:11px;background:transparent;color:var(--muted);
+             border:1px solid var(--border);padding:5px 12px;border-radius:20px;cursor:pointer;
+             letter-spacing:.04em;transition:all .2s">RESET</button>
+  </div>
+</header>
+
+<div class="main-grid">
+
+  <!-- ── Camera + posture bar ── -->
+  <div class="camera-panel">
+    <img id="video-feed" src="/video_feed" alt="Camera Feed" />
+    <div class="cam-overlay">
+      <span class="cam-badge recording">● REC</span>
+      <span class="cam-badge info" id="cam-fps">LIVE</span>
+    </div>
+    <div class="cam-corner-br"></div>
+    <div class="cam-corner-bl"></div>
+
+    <div class="posture-banner">
+      <div>
+        <div class="posture-label">POSTURE</div>
+        <div id="posture-status-text" style="color:var(--good)">Good</div>
+      </div>
+      <div class="posture-bar-wrap">
+        <div class="posture-bar-fill" id="posture-bar" style="transform:scaleX(1)"></div>
+      </div>
+      <div id="posture-score-num" style="color:var(--good)">100</div>
+    </div>
+  </div>
+
+  <!-- ── Dashboard ── -->
+  <div class="dashboard">
+
+    <!-- Engagement card -->
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">Engagement</span>
+        <span class="badge neutral" id="engagement-status-badge">Engaged</span>
+      </div>
+      <div class="engagement-ring-wrap">
+        <svg class="ring-svg" width="90" height="90" viewBox="0 0 90 90">
+          <circle class="ring-track" cx="45" cy="45" r="36"/>
+          <circle class="ring-fill" id="ring-fill" cx="45" cy="45" r="36"
+            stroke-dasharray="226.2" stroke-dashoffset="0"/>
+          <text class="ring-label" id="ring-num" x="45" y="43" fill="var(--text)">100</text>
+          <text class="ring-sub" x="45" y="57" fill="var(--muted)">SCORE</text>
+        </svg>
+        <div class="engagement-stats">
+          <div class="stat-row">
+            <span class="stat-key">Eye Contact</span>
+            <span class="stat-val" id="eye-contact-val">—</span>
+          </div>
+          <div class="stat-row">
+            <span class="stat-key">Blink Rate</span>
+            <span class="stat-val"><span id="blink-rate-val">—</span> /min</span>
+          </div>
+          <div class="stat-row">
+            <span class="stat-key">Attention</span>
+            <span class="badge good" id="attention-badge">Focused</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Posture angles -->
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">Body Angles</span>
+      </div>
+      <div class="metric-grid">
+        <div class="metric-cell">
+          <span class="m-val" id="head-tilt-val">0°</span>
+          <span class="m-key">Head Tilt</span>
+        </div>
+        <div class="metric-cell">
+          <span class="m-val" id="shoulder-tilt-val">0°</span>
+          <span class="m-key">Shoulders</span>
+        </div>
+        <div class="metric-cell">
+          <span class="m-val" id="spine-angle-val">0°</span>
+          <span class="m-key">Spine</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Score gauges -->
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">Score Breakdown</span>
+      </div>
+      <div class="gauge-row">
+        <div class="gauge-item">
+          <div class="gauge-header">
+            <span class="gauge-label">Posture</span>
+            <span class="gauge-num" id="gauge-posture-num">100</span>
+          </div>
+          <div class="gauge-track">
+            <div class="gauge-fill" id="gauge-posture" style="width:100%;background:var(--good)"></div>
+          </div>
+        </div>
+        <div class="gauge-item">
+          <div class="gauge-header">
+            <span class="gauge-label">Engagement</span>
+            <span class="gauge-num" id="gauge-engage-num">100</span>
+          </div>
+          <div class="gauge-track">
+            <div class="gauge-fill" id="gauge-engage" style="width:100%;background:var(--accent2)"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Alerts -->
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">Active Alerts</span>
+        <span class="card-value" id="alert-count" style="color:var(--muted)">0</span>
+      </div>
+      <div id="alerts-list">
+        <div class="no-alerts">All clear — good posture!</div>
+      </div>
+    </div>
+
+    <!-- Score history -->
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">Score History</span>
+        <span class="card-value" style="font-size:10px;color:var(--muted)">LAST 60 SEC</span>
+      </div>
+      <canvas id="spark-canvas"></canvas>
+    </div>
+
+  </div><!-- /dashboard -->
+</div><!-- /main-grid -->
+
+<script>
+// ── History buffer ────────────────────────────────────────────────────────
+const HISTORY_LEN = 60;
+const postureHistory    = Array(HISTORY_LEN).fill(100);
+const engagementHistory = Array(HISTORY_LEN).fill(100);
+let lastFetch = Date.now();
+
+// ── Canvas sparkline ──────────────────────────────────────────────────────
+const canvas = document.getElementById('spark-canvas');
+const ctx    = canvas.getContext('2d');
+
+function drawSparkline() {
+  const W = canvas.offsetWidth;
+  const H = 60;
+  canvas.width  = W * devicePixelRatio;
+  canvas.height = H * devicePixelRatio;
+  ctx.scale(devicePixelRatio, devicePixelRatio);
+
+  ctx.clearRect(0, 0, W, H);
+
+  function drawLine(data, color) {
+    ctx.beginPath();
+    ctx.strokeStyle = color;
+    ctx.lineWidth   = 1.5;
+    ctx.lineJoin    = 'round';
+    data.forEach((v, i) => {
+      const x = (i / (data.length - 1)) * W;
+      const y = H - (v / 100) * (H - 8) - 4;
+      i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+    });
+    ctx.stroke();
+  }
+  drawLine(postureHistory,    '#00e5ff');
+  drawLine(engagementHistory, '#7b61ff');
+}
+
+// ── Score color helper ────────────────────────────────────────────────────
+function scoreColor(s) {
+  if (s >= 80) return 'var(--good)';
+  if (s >= 55) return 'var(--fair)';
+  return 'var(--poor)';
+}
+function badgeClass(status) {
+  const map = {
+    'Good':'good','Fair':'fair','Poor':'poor',
+    'Engaged':'good','Moderate':'fair','Disengaged':'poor',
+    'Focused':'good','Glancing Away':'fair','Distracted':'poor'
+  };
+  return map[status] || 'neutral';
+}
+
+// ── Elapsed timer ─────────────────────────────────────────────────────────
+let sessionStart = Date.now();
+function fmtTime(sec) {
+  const m = String(Math.floor(sec/60)).padStart(2,'0');
+  const s = String(sec % 60).padStart(2,'0');
+  return `⏱ ${m}:${s}`;
+}
+
+// ── Ring helper ───────────────────────────────────────────────────────────
+const CIRCUMFERENCE = 2 * Math.PI * 36; // 226.2
+function setRing(score) {
+  const offset = CIRCUMFERENCE * (1 - score / 100);
+  const fill   = document.getElementById('ring-fill');
+  fill.style.strokeDashoffset = offset;
+  fill.style.stroke = score >= 75 ? 'var(--accent2)' : score >= 45 ? 'var(--fair)' : 'var(--poor)';
+}
+
+// ── Main update ───────────────────────────────────────────────────────────
+async function fetchMetrics() {
+  try {
+    const r = await fetch('/metrics');
+    const d = await r.json();
+
+    // Status dot live
+    document.getElementById('status-dot').classList.add('live');
+
+    // Session timer
+    document.getElementById('session-timer').textContent = fmtTime(d.session_duration);
+
+    // Posture
+    const ps = d.posture_score;
+    const pc = scoreColor(ps);
+    document.getElementById('posture-score-num').textContent  = ps;
+    document.getElementById('posture-score-num').style.color  = pc;
+    document.getElementById('posture-status-text').textContent = d.posture_status;
+    document.getElementById('posture-status-text').style.color = pc;
+    document.getElementById('posture-bar').style.transform     = `scaleX(${ps/100})`;
+    document.getElementById('posture-bar').style.background    =
+      ps >= 80 ? 'linear-gradient(90deg,var(--accent2),var(--accent1))' :
+      ps >= 55 ? 'linear-gradient(90deg,#ff6d00,var(--fair))' :
+                 'linear-gradient(90deg,#b71c1c,var(--poor))';
+
+    // Engagement ring + badge
+    document.getElementById('ring-num').textContent = d.engagement_score;
+    setRing(d.engagement_score);
+    const eb = document.getElementById('engagement-status-badge');
+    eb.textContent = d.engagement_status;
+    eb.className   = `badge ${badgeClass(d.engagement_status)}`;
+
+    // Engagement stats
+    document.getElementById('eye-contact-val').textContent = d.eye_contact ? '👁 Yes' : '⚫ No';
+    document.getElementById('blink-rate-val').textContent  = d.blink_rate.toFixed(1);
+    const ab = document.getElementById('attention-badge');
+    ab.textContent = d.attention;
+    ab.className   = `badge ${badgeClass(d.attention)}`;
+
+    // Angles
+    document.getElementById('head-tilt-val').textContent    = d.head_tilt + '°';
+    document.getElementById('shoulder-tilt-val').textContent = d.shoulder_tilt + '°';
+    document.getElementById('spine-angle-val').textContent   = d.spine_angle + '°';
+
+    // Gauges
+    document.getElementById('gauge-posture').style.width = ps + '%';
+    document.getElementById('gauge-posture').style.background = pc;
+    document.getElementById('gauge-posture-num').textContent = ps;
+
+    document.getElementById('gauge-engage').style.width = d.engagement_score + '%';
+    document.getElementById('gauge-engage-num').textContent = d.engagement_score;
+
+    // Alerts
+    const list = document.getElementById('alerts-list');
+    document.getElementById('alert-count').textContent = d.alerts.length;
+    if (d.alerts.length === 0) {
+      list.innerHTML = '<div class="no-alerts">All clear — good posture!</div>';
+    } else {
+      list.innerHTML = d.alerts.map(a =>
+        `<div class="alert-item">${a}</div>`
+      ).join('');
+    }
+
+    // History
+    postureHistory.push(ps);            postureHistory.shift();
+    engagementHistory.push(d.engagement_score); engagementHistory.shift();
+    drawSparkline();
+
+    // FPS counter
+    const now = Date.now();
+    const fps = Math.round(1000 / (now - lastFetch));
+    lastFetch = now;
+    document.getElementById('cam-fps').textContent = `${fps} FPS`;
+
+  } catch(e) {
+    document.getElementById('status-dot').classList.remove('live');
+  }
+}
+
+function resetSession() {
+  fetch('/reset');
+  postureHistory.fill(100);
+  engagementHistory.fill(100);
+  drawSparkline();
+}
+
+// Poll every 200 ms
+setInterval(fetchMetrics, 200);
+fetchMetrics();
+
+// Resize sparkline on window resize
+window.addEventListener('resize', drawSparkline);
+drawSparkline();
+</script>
+</body>
+</html>
